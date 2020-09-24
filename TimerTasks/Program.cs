@@ -1,4 +1,7 @@
-﻿using System;
+﻿using Quartz;
+using Quartz.Impl;
+using Quartz.Logging;
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -52,24 +55,112 @@ namespace TimerTasks
             #endregion
 
             #region TaskFactory
-            CancellationTokenSource ct = new CancellationTokenSource();
-            //等待按下任意一个键取消任务
-            TaskFactory fac = new TaskFactory();
-            Task[] tasks = new Task[] {
-                fac.StartNew(()=>Add(ct.Token)),
-                fac.StartNew(()=>Add(ct.Token)),
-                fac.StartNew(()=>Add(ct.Token))
+            //CancellationTokenSource ct = new CancellationTokenSource();
+            ////等待按下任意一个键取消任务
+            //TaskFactory fac = new TaskFactory();
+            //Task[] tasks = new Task[] {
+            //    fac.StartNew(()=>Add(ct.Token)),
+            //    fac.StartNew(()=>Add(ct.Token)),
+            //    fac.StartNew(()=>Add(ct.Token))
 
-            };
-            //CancellationToken.None指示TasksEnded不能被取消
-            fac.ContinueWhenAll(tasks, TaskEndedAll, CancellationToken.None);
-            Console.ReadKey();
-            ct.Cancel(); 
+            //};
+            ////CancellationToken.None指示TasksEnded不能被取消
+            //fac.ContinueWhenAll(tasks, TaskEndedAll, CancellationToken.None);
+            //Console.ReadKey();
+            //ct.Cancel();
             #endregion
 
+            QuartzJobs();
             Console.ReadKey();
            
         }
+
+        private async   static void QuartzJobs()
+        {
+            //// Grab the Scheduler instance from the Factory
+            //StdSchedulerFactory factory = new StdSchedulerFactory();
+            //IScheduler scheduler = await factory.GetScheduler( );
+
+            //// and start it off
+            //await scheduler.Start();
+
+            //// some sleep to show what's happening
+            //await Task.Delay(TimeSpan.FromSeconds(3));
+
+            //// and last shut down the scheduler when you are ready to close your program
+            //await scheduler.Shutdown();
+
+            LogProvider.SetCurrentLogProvider(new ConsoleLogProvider());
+
+            // Grab the Scheduler instance from the Factory
+            StdSchedulerFactory factory = new StdSchedulerFactory();
+            IScheduler scheduler = await factory.GetScheduler();
+
+            // and start it off
+            await scheduler.Start();
+
+            // define the job and tie it to our HelloJob class Job任务
+            IJobDetail job = JobBuilder.Create<HelloJob>()
+                .WithIdentity("job1", "group1")
+                .Build();
+
+            // Trigger the job to run now, and then repeat every 10 seconds 触发器
+            ITrigger trigger = TriggerBuilder.Create()
+                .WithIdentity("trigger1", "group1")
+                .StartNow()
+                //.WithCronSchedule("") // 使用Corn表达式来实现间隔时间
+                .WithSimpleSchedule(x => x
+                    .WithIntervalInSeconds(10)
+                    .RepeatForever())
+                .Build();
+
+            // Tell quartz to schedule the job using our trigger 作业调度器
+            await scheduler.ScheduleJob(job, trigger);
+
+            // some sleep to show what's happening
+            await Task.Delay(TimeSpan.FromSeconds(60));
+
+            // and last shut down the scheduler when you are ready to close your program
+            await scheduler.Shutdown();
+
+            Console.WriteLine("Press any key to close the application");
+
+        }
+
+
+
+        // simple log provider to get something to the console
+        private class ConsoleLogProvider : ILogProvider
+        {
+            public Logger GetLogger(string name)
+            {
+                return (level, func, exception, parameters) =>
+                {
+                    if (level >= LogLevel.Info && func != null)
+                    {
+                        Console.WriteLine("[" + DateTime.Now.ToLongTimeString() + "] [" + level + "] " + func(), parameters);
+                    }
+                    return true;
+                };
+            }
+
+            public IDisposable OpenNestedContext(string message)
+            {
+                throw new NotImplementedException();
+            }
+
+            public IDisposable OpenMappedContext(string key, string value)
+            {
+                throw new NotImplementedException();
+            }
+
+            public IDisposable OpenMappedContext(string key, object value, bool destructure = false)
+            {
+                throw new NotImplementedException();
+            }
+        }
+
+
         static void TaskEndedAll(Task[] tasks) {
             Console.WriteLine("所有任务已完成！");
         }
